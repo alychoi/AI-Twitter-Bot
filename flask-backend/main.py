@@ -1,6 +1,7 @@
 from __future__ import print_function
 from flask import Blueprint, render_template, Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
+from flask_marshmallow import Marshmallow
 from datetime import datetime
 from sqlalchemy import Column, ForeignKey, Integer, String
 import os
@@ -9,8 +10,10 @@ basedir = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask("__name__")
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posts2.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize the database
 db = SQLAlchemy(app)
+ma = Marshmallow(app)
 
 # Create db model
 class Posts(db.Model):
@@ -24,8 +27,14 @@ class Posts(db.Model):
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
 
     #C reate a function to return a string when we add something
-    def __repr__(self):
-        return '<displayName %r>' % self.id 
+    def __init__(self, id, displayName, image, text, username, verified, avatar):
+        self.id = id
+        self.displayName = displayName
+        self.image = image
+        self.text = text
+        self.username = username
+        self.verified = verified
+        self.avatar = avatar
 
 @app.route('/<displayName>/<text>')
 def index(displayName, text):
@@ -34,9 +43,37 @@ def index(displayName, text):
     db.session.commit()
     return '<h1>IT WORKS!</h1>'
 
+class PostsSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'displayName', 'image', 'text', 'username', 'verified', 'avatar', 'date_created')
+
+post_schema = PostsSchema()
+posts_schema = PostsSchema(many=True)
+
+@app.route("/api", methods = ['GET', 'POST'])
+def api():
+    #tweet = generator()
+    if request.method == 'POST':
+        id = request.json['id'] 
+        displayName = request.json['displayName'] 
+        image = request.json['image'] 
+        text = request.json['text'] 
+        username = request.json['username'] 
+        verified = request.json['verified']
+        avatar = request.json['avatar']
+        date_created = request.json['date_created']
+        new_posts = Posts(id, displayName, image, text, username, verified, avatar, date_created)
+        db.session.add(new_posts)
+        db.session.commit()
+        return post_schema.jsonify(new_posts)
+    if request.method == 'GET':
+        all_posts = Posts.query.all()
+        result = posts_schema.dump(all_posts)
+        return jsonify(result)
+        #return jsonify([{"id": i.id, "displayName": i.displayName, "image": i.image, "text": i.text, "username": i.username, "verified": i.verified, "avatar": i.avatar, "date_created": i.date_created} for i in posts]) 
+
 @app.route("/home")
 def my_index():
-    #tweet = generator()
     return render_template('index.html')
 
 if __name__ == '__main__':
