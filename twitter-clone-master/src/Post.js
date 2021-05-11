@@ -22,8 +22,6 @@ const Post = forwardRef(
       setVisible(true);
     }
 
-    console.log(text);
-
     let style = {
       position: "fixed",
       zIndex: "1",

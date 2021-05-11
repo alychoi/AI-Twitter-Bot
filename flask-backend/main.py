@@ -1,14 +1,18 @@
 from __future__ import print_function
-from flask import Blueprint, render_template, Flask, jsonify, request
+from flask import Blueprint, render_template, Flask, jsonify, request, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
+from flask_cors import CORS
+from flask_session import Session
 from datetime import datetime
 from sqlalchemy import Column, ForeignKey, Integer, String
 import os
+import logging
 
 basedir = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask("__name__")
+CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posts2.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize the database
@@ -54,23 +58,26 @@ posts_schema = PostsSchema(many=True)
 def api():
     #tweet = generator()
     if request.method == 'POST':
-        id = request.json['id'] 
+        id = Posts.query.order_by('id').all()[-1].id + 1
         displayName = request.json['displayName'] 
         image = request.json['image'] 
         text = request.json['text'] 
         username = request.json['username'] 
         verified = request.json['verified']
         avatar = request.json['avatar']
-        date_created = request.json['date_created']
-        new_posts = Posts(id, displayName, image, text, username, verified, avatar, date_created)
+        #date_created = request.json['date_created']
+        new_posts = Posts(id, displayName, image, text, username, verified, avatar)
         db.session.add(new_posts)
         db.session.commit()
+        print(new_posts)
         return post_schema.jsonify(new_posts)
-    if request.method == 'GET':
+    elif request.method == 'GET':
         all_posts = Posts.query.all()
         result = posts_schema.dump(all_posts)
+        print(result)
         return jsonify(result)
-        #return jsonify([{"id": i.id, "displayName": i.displayName, "image": i.image, "text": i.text, "username": i.username, "verified": i.verified, "avatar": i.avatar, "date_created": i.date_created} for i in posts]) 
+    else:
+        return render_template('index.html')
 
 @app.route("/home")
 def my_index():
