@@ -1,95 +1,88 @@
 from __future__ import print_function
 from datetime import datetime
-import os
 from flask import render_template, Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-#from keras.utils import np_utils
-# from keras import regularizers
-# from keras.models import Sequential, Model
-# from keras.layers import Dense, Activation, Dropout, Embedding, Flatten, Bidirectional, Input, LSTM
-# from keras.callbacks import EarlyStopping,ModelCheckpoint
-# from keras.optimizers import Adam
-# from keras.metrics import categorical_accuracy, mean_squared_error, mean_absolute_error, logcosh
-# from keras.layers.normalization import BatchNormalization
-# from matplotlib import pyplot as plt
-# import numpy
-# import math
-# import random
-# import sys
-# import os
-# import csv
-# from gensim.test.utils import common_texts
-# from gensim.models import Word2Vec
-# from gensim.models import KeyedVectors
-# import gensim.downloader
-# import sqlite3
+from flask_marshmallow import Marshmallow
+from flask_cors import CORS
+from sqlalchemy import Column, ForeignKey, Integer, String, desc
+import os
 
-currentdirectory = os.path.dirname(os.path.abspath(__file__))
+from keras.utils import np_utils
+from keras import regularizers
+from keras.models import Sequential, Model
+from keras.layers import Dense, Activation, Dropout, Embedding, Flatten, Bidirectional, Input, LSTM
+from keras.callbacks import EarlyStopping,ModelCheckpoint
+from keras.optimizers import Adam
+from keras.metrics import categorical_accuracy, mean_squared_error, mean_absolute_error, logcosh
+from keras.layers.normalization import BatchNormalization
+from matplotlib import pyplot as plt
+import numpy
+import math
+import random
+import sys
+import os
+import csv
+from gensim.test.utils import common_texts
+from gensim.models import Word2Vec
+from gensim.models import KeyedVectors
+import gensim.downloader
+import sqlite3
 
-app = Flask("__main__")
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///posts.db'
+basedir = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask("__name__")
+CORS(app)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'quotes.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize the database
 db = SQLAlchemy(app)
+ma = Marshmallow(app)
 
 # Create db model
-class Friends(db.Model):
+class Quotes(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    displayName = db.Column(db.String)
-    image = db.Column(db.String)
+    category = db.Column(db.String)
     text = db.Column(db.String)
-    username = db.Column(db.String, nullable=False)
-    verified = db.Column(db.Boolean)
-    avatar = db.Column(db.String)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
 
-    #C reate a function to return a string when we add something
-    def __repr__(self):
-        return '<displayName %r>' % self.id 
+    def __init__(self, id, category, text):
+        self.id = id
+        self.category = category
+        self.text = text
 
-#db.create_all()
-#db.session.commit()
+class QuotesSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'category', 'text')
+
+quote_schema = QuotesSchema()
+quotes_schema = QuotesSchema(many=True)
+
+@app.route("/api-quotes", methods = ['GET', 'POST'])
+def api():
+    tweet = generator()
+    if request.method == 'POST':
+        id = Quotes.query.order_by('id').all()[-1].id + 1
+        category = 'quotes' 
+        text = tweet 
+        new_quotes = Quotes(id, category, text)
+        db.session.add(new_quotes)
+        db.session.commit()
+        print(new_quotes)
+        return quote_schema.jsonify(new_quotes)
+    elif request.method == 'GET':
+        all_quotes = Quotes.query.order_by(desc(Quotes.id))
+        result = quotes_schema.dump(all_quotes)
+        print(result)
+        return jsonify(result)
+    else:
+        return render_template('index.html')
 
 @app.route("/home")
 def my_index():
     return render_template('index.html')
 
-@app.route("/home", methods = ["POST"])
-def posts():
-    displayName = request.form["displayName"]
-    id = request.form["id"]
-    image = request.form["image"]
-    text = request.form["text"]
-    username = request.form["username"]
-    verified = request.form["verified"]
-    avatar = request.form["avatar"]
-    connection = sqlite3.connect(currentdirectory + "/posts.db")
-    print("Opened database successfully")
-    cursor = connection.cursor()
-    query1 = "INSERT INTO posts VALUES('{displayName}',{id},'{image}','{text}', '{username}',{verified},'{avatar}')".format(displayName = displayName, id = id, image = image, text = text, username = username, verified = verified, avatar = avatar)
-    cursor.execute(query1)
-    print("Values inserted successfully")
-    connection.commit()
-
-@app.route("/resultpage", methods = ["GET"])
-def resultpage():
-    try:
-        if request.method == "GET":
-            name = request.args.get("displayName")
-            connection = sqlite3.connect(currentdirectory + "/posts.db")
-            print("Opened database successfully")
-            cursor = connection.cursor()
-            query1 = "SELECT elements from posts WHERE displayName = '{displayName}'".format(displayName = name)
-            result = cursor.execute(query1)
-            result = result.fetchall()[0][0]
-            print("Elements selected successfully")
-            return render_template("resultpage.html", displayName = result)
-    except:
-        return render_template("resultpage.html", displayName = "")
-
-
-@app.route("/predict", methods = ['POST'])
 def generator():
-    word_vectors = KeyedVectors.load("./giga.wordvectors", mmap='r')
+    word_vectors = KeyedVectors.load("./giga50.wordvectors", mmap='r')
 
     quote_file = "./inspa_quotes.csv"
     # quote_file = "inspa_quotes.csv"
@@ -181,15 +174,9 @@ def generator():
     #str1 = "" 
     #for ele in pattern: 
     #    str1 += ele  
-    prediction_text = request.form.get("predict", "")
-    return jsonify(predict=pattern)
+    return pattern
     #return render_template('index.html', prediction_text=pattern)
     #print ("\nDone.")
 
-@app.route("/predict-api", methods=['POST'])
-def predict_api():
-    #data = request.get_json(force=True)
-    prediction = generator()
-    return jsonify(prediction)
-
-app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True)

@@ -9,7 +9,6 @@ import FavoriteBorderIcon from "@material-ui/icons/FavoriteBorder";
 import PublishIcon from "@material-ui/icons/Publish";
 import Comments from "./Comments";
 
-
 const Post = forwardRef(
   ({ id, displayName, username, verified, text, image, avatar }, ref) => {
     const [visible, setVisible] = useState(false);
